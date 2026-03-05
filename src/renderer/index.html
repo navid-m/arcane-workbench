@@ -1,0 +1,1127 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta
+            http-equiv="Content-Security-Policy"
+            content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:;"
+        />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>ArcaneDB Workbench</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <style>
+            /* ── Reset & base ──────────────────────────────────────────────────────── */
+            *,
+            *::before,
+            *::after {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+
+            :root {
+                --bg-base: #0d1117;
+                --bg-surface: #161b22;
+                --bg-elevated: #1c2128;
+                --bg-overlay: #21262d;
+                --bg-hover: #262c36;
+
+                --border: #30363d;
+                --border-subtle: #21262d;
+
+                --text-primary: #e6edf3;
+                --text-secondary: #8b949e;
+                --text-muted: #484f58;
+                --text-link: #58a6ff;
+
+                --accent-purple: #c792ea;
+                --accent-blue: #58a6ff;
+                --accent-green: #3fb950;
+                --accent-orange: #f78c6c;
+                --accent-red: #ff5370;
+                --accent-yellow: #ffcb6b;
+                --accent-cyan: #89ddff;
+
+                --nav-width: 56px;
+                --toolbar-height: 42px;
+                --statusbar-height: 24px;
+
+                font-family:
+                    "JetBrains Mono", "Cascadia Code", "Fira Code", "Consolas",
+                    monospace;
+                font-size: 13px;
+                line-height: 1.5;
+            }
+
+            html,
+            body {
+                width: 100%;
+                height: 100%;
+                overflow: hidden;
+                background: var(--bg-base);
+                color: var(--text-primary);
+            }
+
+            /* ── Layout ─────────────────────────────────────────────────────────────── */
+            #app {
+                display: grid;
+                grid-template-rows: var(--toolbar-height) 1fr var(
+                        --statusbar-height
+                    );
+                grid-template-columns: var(--nav-width) 1fr;
+                grid-template-areas:
+                    "nav toolbar"
+                    "nav main"
+                    "nav statusbar";
+                width: 100vw;
+                height: 100vh;
+            }
+
+            /* ── Navigation sidebar ─────────────────────────────────────────────────── */
+            #nav {
+                grid-area: nav;
+                background: var(--bg-surface);
+                border-right: 1px solid var(--border);
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                padding: 8px 0;
+                gap: 2px;
+                z-index: 10;
+            }
+
+            .nav-item {
+                width: 40px;
+                height: 40px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 8px;
+                cursor: pointer;
+                color: var(--text-muted);
+                transition:
+                    color 0.15s,
+                    background 0.15s;
+                position: relative;
+                border: none;
+                background: none;
+                font-size: 18px;
+            }
+
+            .nav-item:hover {
+                color: var(--text-secondary);
+                background: var(--bg-overlay);
+            }
+            .nav-item.active {
+                color: var(--accent-purple);
+                background: rgba(199, 146, 234, 0.12);
+            }
+
+            .nav-item::after {
+                content: attr(data-tooltip);
+                position: absolute;
+                left: calc(100% + 8px);
+                background: var(--bg-overlay);
+                color: var(--text-primary);
+                padding: 4px 8px;
+                border-radius: 4px;
+                white-space: nowrap;
+                font-size: 11px;
+                border: 1px solid var(--border);
+                pointer-events: none;
+                opacity: 0;
+                transition: opacity 0.15s;
+                z-index: 100;
+            }
+            .nav-item:hover::after {
+                opacity: 1;
+            }
+
+            .nav-spacer {
+                flex: 1;
+            }
+
+            /* ── Toolbar ─────────────────────────────────────────────────────────────── */
+            #toolbar {
+                grid-area: toolbar;
+                background: var(--bg-surface);
+                border-bottom: 1px solid var(--border);
+                display: flex;
+                align-items: center;
+                padding: 0 12px;
+                gap: 4px;
+                -webkit-app-region: drag;
+            }
+
+            #toolbar > * {
+                -webkit-app-region: no-drag;
+            }
+
+            #title-filename {
+                margin: 0 8px;
+                color: var(--text-secondary);
+                font-size: 12px;
+                min-width: 120px;
+            }
+
+            .toolbar-sep {
+                width: 1px;
+                height: 20px;
+                background: var(--border);
+                margin: 0 4px;
+            }
+
+            .btn {
+                display: flex;
+                align-items: center;
+                gap: 5px;
+                padding: 4px 10px;
+                border: 1px solid var(--border);
+                border-radius: 6px;
+                background: var(--bg-elevated);
+                color: var(--text-primary);
+                font-size: 12px;
+                cursor: pointer;
+                transition:
+                    background 0.12s,
+                    border-color 0.12s;
+                font-family: inherit;
+                white-space: nowrap;
+            }
+
+            .btn:hover {
+                background: var(--bg-hover);
+                border-color: var(--text-muted);
+            }
+            .btn:disabled {
+                opacity: 0.4;
+                cursor: not-allowed;
+            }
+
+            .btn-primary {
+                background: rgba(199, 146, 234, 0.15);
+                border-color: rgba(199, 146, 234, 0.4);
+                color: var(--accent-purple);
+                font-weight: 600;
+            }
+            .btn-primary:hover {
+                background: rgba(199, 146, 234, 0.25);
+            }
+
+            .btn-run {
+                background: rgba(63, 185, 80, 0.15);
+                border-color: rgba(63, 185, 80, 0.4);
+                color: var(--accent-green);
+                font-weight: 600;
+            }
+            .btn-run:hover {
+                background: rgba(63, 185, 80, 0.25);
+            }
+
+            .btn-danger {
+                background: rgba(255, 83, 112, 0.1);
+                border-color: rgba(255, 83, 112, 0.3);
+                color: var(--accent-red);
+                font-size: 11px;
+                padding: 3px 8px;
+            }
+            .btn-danger:hover {
+                background: rgba(255, 83, 112, 0.2);
+            }
+
+            .btn-icon {
+                border-radius: 4px;
+            }
+
+            #run-spinner {
+                display: none;
+                width: 12px;
+                height: 12px;
+                border: 2px solid rgba(63, 185, 80, 0.3);
+                border-top-color: var(--accent-green);
+                border-radius: 50%;
+                animation: spin 0.7s linear infinite;
+            }
+            @keyframes spin {
+                to {
+                    transform: rotate(360deg);
+                }
+            }
+
+            /* ── Main area ──────────────────────────────────────────────────────────── */
+            #main {
+                grid-area: main;
+                position: relative;
+                overflow: hidden;
+            }
+
+            .panel {
+                position: absolute;
+                inset: 0;
+                display: none;
+                flex-direction: column;
+            }
+            .panel.active {
+                display: flex;
+            }
+
+            /* ── Editor panel ───────────────────────────────────────────────────────── */
+            #panel-editor {
+                flex-direction: row;
+            }
+
+            #editor-area {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                min-width: 0;
+            }
+
+            #monaco-container {
+                flex: 1;
+                min-height: 0;
+            }
+
+            #output-area {
+                width: 420px;
+                min-width: 200px;
+                max-width: 50vw;
+                display: flex;
+                flex-direction: column;
+                border-left: 1px solid var(--border);
+                background: var(--bg-base);
+                resize: horizontal;
+                overflow: hidden;
+            }
+
+            .output-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 6px 12px;
+                background: var(--bg-surface);
+                border-bottom: 1px solid var(--border);
+                font-size: 11px;
+                color: var(--text-muted);
+                text-transform: uppercase;
+                letter-spacing: 0.06em;
+            }
+
+            #output-content {
+                flex: 1;
+                overflow-y: auto;
+                padding: 8px 0;
+                font-size: 12px;
+                font-family: "JetBrains Mono", monospace;
+            }
+
+            .output-line {
+                padding: 1px 14px;
+                white-space: pre-wrap;
+                word-break: break-all;
+                line-height: 1.6;
+            }
+            .output-stdout {
+                color: var(--text-primary);
+            }
+            .output-stderr {
+                color: var(--accent-red);
+            }
+            .output-info {
+                color: var(--accent-cyan);
+            }
+            .output-success {
+                color: var(--accent-green);
+            }
+            .output-system {
+                color: var(--text-muted);
+                font-style: italic;
+            }
+
+            /* ── REPL panel ─────────────────────────────────────────────────────────── */
+            #panel-repl {
+                flex-direction: column;
+            }
+
+            .panel-toolbar {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                padding: 8px 12px;
+                background: var(--bg-surface);
+                border-bottom: 1px solid var(--border);
+            }
+
+            .panel-title {
+                font-size: 11px;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                color: var(--text-muted);
+                margin-right: 8px;
+            }
+
+            #repl-output {
+                flex: 1;
+                overflow-y: auto;
+                padding: 8px 0;
+                font-size: 12px;
+                font-family: "JetBrains Mono", monospace;
+                background: var(--bg-base);
+            }
+
+            .repl-input-row {
+                display: flex;
+                align-items: center;
+                gap: 0;
+                border-top: 1px solid var(--border);
+                background: var(--bg-surface);
+            }
+
+            .repl-prompt {
+                padding: 0 10px;
+                color: var(--accent-purple);
+                font-weight: bold;
+                font-size: 14px;
+                user-select: none;
+            }
+
+            #repl-input {
+                flex: 1;
+                background: none;
+                border: none;
+                outline: none;
+                color: var(--text-primary);
+                font-family: "JetBrains Mono", monospace;
+                font-size: 13px;
+                padding: 10px 0;
+                caret-color: var(--accent-purple);
+            }
+
+            #repl-input::placeholder {
+                color: var(--text-muted);
+            }
+            #repl-input:disabled {
+                opacity: 0.4;
+            }
+
+            /* ── Server panel ───────────────────────────────────────────────────────── */
+            #panel-server {
+                flex-direction: column;
+            }
+
+            .server-config {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                flex-wrap: wrap;
+                padding: 10px 14px;
+                background: var(--bg-surface);
+                border-bottom: 1px solid var(--border);
+            }
+
+            .config-group {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+
+            .config-label {
+                font-size: 11px;
+                color: var(--text-muted);
+                text-transform: uppercase;
+                letter-spacing: 0.06em;
+            }
+
+            .config-input {
+                background: var(--bg-base);
+                border: 1px solid var(--border);
+                border-radius: 5px;
+                color: var(--text-primary);
+                font-family: inherit;
+                font-size: 12px;
+                padding: 4px 8px;
+                outline: none;
+                width: 160px;
+            }
+            .config-input:focus {
+                border-color: var(--accent-purple);
+            }
+
+            .config-select {
+                background: var(--bg-base);
+                border: 1px solid var(--border);
+                border-radius: 5px;
+                color: var(--text-primary);
+                font-family: inherit;
+                font-size: 12px;
+                padding: 4px 8px;
+                outline: none;
+            }
+
+            #server-output {
+                flex: 1;
+                overflow-y: auto;
+                padding: 8px 0;
+                font-size: 12px;
+                font-family: "JetBrains Mono", monospace;
+                background: var(--bg-base);
+            }
+
+            /* ── Users panel ────────────────────────────────────────────────────────── */
+            #panel-users {
+                flex-direction: row;
+            }
+
+            .users-sidebar {
+                width: 280px;
+                border-right: 1px solid var(--border);
+                display: flex;
+                flex-direction: column;
+                background: var(--bg-surface);
+            }
+
+            .users-main {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                padding: 20px 24px;
+                overflow-y: auto;
+            }
+
+            .section-header {
+                padding: 10px 14px;
+                font-size: 11px;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                color: var(--text-muted);
+                border-bottom: 1px solid var(--border);
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+            }
+
+            #user-list {
+                flex: 1;
+                overflow-y: auto;
+                padding: 8px 0;
+            }
+
+            .user-row {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 8px 14px;
+                border-bottom: 1px solid var(--border-subtle);
+                transition: background 0.1s;
+            }
+            .user-row:hover {
+                background: var(--bg-hover);
+            }
+
+            .user-name {
+                font-size: 13px;
+                color: var(--text-primary);
+            }
+
+            .loading-text,
+            .muted-text {
+                padding: 12px 14px;
+                color: var(--text-muted);
+                font-size: 12px;
+            }
+            .error-text {
+                padding: 12px 14px;
+                color: var(--accent-red);
+                font-size: 12px;
+            }
+
+            .form-section {
+                background: var(--bg-elevated);
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                padding: 20px;
+                max-width: 400px;
+            }
+
+            .form-section h3 {
+                font-size: 14px;
+                font-weight: 600;
+                margin-bottom: 16px;
+                color: var(--text-primary);
+            }
+
+            .form-field {
+                margin-bottom: 12px;
+            }
+
+            .form-field label {
+                display: block;
+                font-size: 11px;
+                text-transform: uppercase;
+                letter-spacing: 0.06em;
+                color: var(--text-muted);
+                margin-bottom: 5px;
+            }
+
+            .form-input {
+                width: 100%;
+                background: var(--bg-base);
+                border: 1px solid var(--border);
+                border-radius: 5px;
+                color: var(--text-primary);
+                font-family: inherit;
+                font-size: 13px;
+                padding: 6px 10px;
+                outline: none;
+                transition: border-color 0.15s;
+            }
+            .form-input:focus {
+                border-color: var(--accent-purple);
+            }
+
+            .user-feedback,
+            .settings-feedback {
+                margin-top: 10px;
+                font-size: 12px;
+                min-height: 18px;
+            }
+            .user-feedback.success,
+            .settings-feedback.success {
+                color: var(--accent-green);
+            }
+            .user-feedback.error,
+            .settings-feedback.error {
+                color: var(--accent-red);
+            }
+
+            /* ── Settings panel ─────────────────────────────────────────────────────── */
+            #panel-settings {
+                padding: 24px 28px;
+                overflow-y: auto;
+            }
+
+            .settings-section {
+                max-width: 560px;
+            }
+
+            .settings-section h2 {
+                font-size: 16px;
+                font-weight: 600;
+                margin-bottom: 4px;
+                color: var(--text-primary);
+            }
+
+            .settings-section p {
+                font-size: 12px;
+                color: var(--text-muted);
+                margin-bottom: 20px;
+            }
+
+            .settings-card {
+                background: var(--bg-elevated);
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                padding: 20px;
+                margin-bottom: 16px;
+            }
+
+            .settings-card h3 {
+                font-size: 13px;
+                font-weight: 600;
+                margin-bottom: 14px;
+                color: var(--text-primary);
+            }
+
+            .settings-row {
+                margin-bottom: 14px;
+            }
+
+            .settings-row label {
+                display: block;
+                font-size: 11px;
+                text-transform: uppercase;
+                letter-spacing: 0.06em;
+                color: var(--text-muted);
+                margin-bottom: 5px;
+            }
+
+            .settings-row .input-row {
+                display: flex;
+                gap: 6px;
+            }
+
+            .settings-input {
+                flex: 1;
+                background: var(--bg-base);
+                border: 1px solid var(--border);
+                border-radius: 5px;
+                color: var(--text-primary);
+                font-family: inherit;
+                font-size: 12px;
+                padding: 6px 10px;
+                outline: none;
+            }
+            .settings-input:focus {
+                border-color: var(--accent-purple);
+            }
+
+            /* ── Status bar ─────────────────────────────────────────────────────────── */
+            #statusbar {
+                grid-area: statusbar;
+                background: var(--bg-surface);
+                border-top: 1px solid var(--border);
+                display: flex;
+                align-items: center;
+                padding: 0 10px;
+                gap: 16px;
+                font-size: 11px;
+                color: var(--text-muted);
+            }
+
+            .server-badge {
+                display: flex;
+                align-items: center;
+                gap: 5px;
+                font-size: 11px;
+            }
+            .server-badge::before {
+                content: "";
+                width: 7px;
+                height: 7px;
+                border-radius: 50%;
+                display: inline-block;
+            }
+            .server-badge.running {
+                color: var(--accent-green);
+            }
+            .server-badge.running::before {
+                background: var(--accent-green);
+                box-shadow: 0 0 6px var(--accent-green);
+            }
+            .server-badge.stopped {
+                color: var(--text-muted);
+            }
+            .server-badge.stopped::before {
+                background: var(--text-muted);
+            }
+
+            .status-sep {
+                width: 1px;
+                height: 12px;
+                background: var(--border);
+            }
+
+            /* ── Scrollbar ──────────────────────────────────────────────────────────── */
+            ::-webkit-scrollbar {
+                width: 8px;
+                height: 8px;
+            }
+            ::-webkit-scrollbar-track {
+                background: transparent;
+            }
+            ::-webkit-scrollbar-thumb {
+                background: var(--bg-overlay);
+                border-radius: 4px;
+            }
+            ::-webkit-scrollbar-thumb:hover {
+                background: var(--border);
+            }
+
+            /* ── SVG icons ──────────────────────────────────────────────────────────── */
+            .icon {
+                width: 18px;
+                height: 18px;
+                stroke: currentColor;
+                fill: none;
+                stroke-width: 1.8;
+                stroke-linecap: round;
+                stroke-linejoin: round;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="app">
+            <!-- Navigation sidebar -->
+            <nav id="nav">
+                <button
+                    class="nav-item active"
+                    id="nav-editor"
+                    data-tooltip="Script Editor"
+                >
+                    <!-- Code icon -->
+                    <svg class="icon" viewBox="0 0 24 24">
+                        <polyline points="16 18 22 12 16 6" />
+                        <polyline points="8 6 2 12 8 18" />
+                    </svg>
+                </button>
+                <button
+                    class="nav-item"
+                    id="nav-repl"
+                    data-tooltip="Interactive REPL"
+                >
+                    <!-- Terminal icon -->
+                    <svg class="icon" viewBox="0 0 24 24">
+                        <polyline points="4 17 10 11 4 5" />
+                        <line x1="12" y1="19" x2="20" y2="19" />
+                    </svg>
+                </button>
+                <button
+                    class="nav-item"
+                    id="nav-server"
+                    data-tooltip="Server Control"
+                >
+                    <!-- Server icon -->
+                    <svg class="icon" viewBox="0 0 24 24">
+                        <rect x="2" y="2" width="20" height="8" rx="2" />
+                        <rect x="2" y="14" width="20" height="8" rx="2" />
+                        <line x1="6" y1="6" x2="6.01" y2="6" />
+                        <line x1="6" y1="18" x2="6.01" y2="18" />
+                    </svg>
+                </button>
+                <button
+                    class="nav-item"
+                    id="nav-users"
+                    data-tooltip="User Management"
+                >
+                    <!-- Users icon -->
+                    <svg class="icon" viewBox="0 0 24 24">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                        <circle cx="9" cy="7" r="4" />
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
+                </button>
+                <div class="nav-spacer"></div>
+                <button
+                    class="nav-item"
+                    id="nav-settings"
+                    data-tooltip="Settings"
+                >
+                    <!-- Settings icon -->
+                    <svg class="icon" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="3" />
+                        <path
+                            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+                        />
+                    </svg>
+                </button>
+            </nav>
+
+            <!-- Toolbar -->
+            <header id="toolbar">
+                <button class="btn" id="btn-new" title="New Script (Ctrl+N)">
+                    <svg
+                        class="icon"
+                        style="width: 14px; height: 14px"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                        />
+                        <polyline points="14 2 14 8 20 8" />
+                    </svg>
+                    New
+                </button>
+                <button class="btn" id="btn-open" title="Open Script (Ctrl+O)">
+                    <svg
+                        class="icon"
+                        style="width: 14px; height: 14px"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                        />
+                    </svg>
+                    Open
+                </button>
+                <button class="btn" id="btn-save" title="Save Script (Ctrl+S)">
+                    <svg
+                        class="icon"
+                        style="width: 14px; height: 14px"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"
+                        />
+                        <polyline points="17 21 17 13 7 13 7 21" />
+                        <polyline points="7 3 7 8 15 8" />
+                    </svg>
+                    Save
+                </button>
+
+                <div class="toolbar-sep"></div>
+
+                <button
+                    class="btn btn-run"
+                    id="btn-run"
+                    title="Run Script (F5)"
+                >
+                    <svg
+                        class="icon"
+                        style="width: 14px; height: 14px"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                        stroke="none"
+                    >
+                        <polygon points="5 3 19 12 5 21 5 3" />
+                    </svg>
+                    Run
+                    <span id="run-spinner"></span>
+                </button>
+                <button
+                    class="btn"
+                    id="btn-run-selection"
+                    title="Run Selected (Ctrl+Enter)"
+                    style="font-size: 11px"
+                >
+                    Run Selected
+                </button>
+
+                <div class="toolbar-sep"></div>
+
+                <span
+                    id="title-filename"
+                    style="color: var(--text-muted); font-size: 12px"
+                    >untitled.aql</span
+                >
+            </header>
+
+            <!-- Main panels -->
+            <main id="main">
+                <!-- Editor panel -->
+                <div class="panel active" id="panel-editor">
+                    <div id="editor-area">
+                        <div id="monaco-container"></div>
+                    </div>
+                    <div id="output-area">
+                        <div class="output-header">
+                            <span>Output</span>
+                            <button
+                                class="btn btn-icon"
+                                id="btn-clear-output"
+                                style="font-size: 10px; padding: 2px 7px"
+                            >
+                                Clear
+                            </button>
+                        </div>
+                        <div id="output-content"></div>
+                    </div>
+                </div>
+
+                <!-- REPL panel -->
+                <div class="panel" id="panel-repl">
+                    <div class="panel-toolbar">
+                        <span class="panel-title">Interactive REPL</span>
+                        <button class="btn btn-run" id="btn-repl-start">
+                            Start REPL
+                        </button>
+                        <button class="btn" id="btn-repl-stop">Stop</button>
+                        <button class="btn" id="btn-repl-clear">Clear</button>
+                    </div>
+                    <div id="repl-output"></div>
+                    <div class="repl-input-row">
+                        <span class="repl-prompt">▶</span>
+                        <input
+                            type="text"
+                            id="repl-input"
+                            placeholder="Start the REPL to enter statements…"
+                            autocomplete="off"
+                            spellcheck="false"
+                        />
+                    </div>
+                </div>
+
+                <!-- Server panel -->
+                <div class="panel" id="panel-server">
+                    <div class="server-config">
+                        <span class="panel-title">arcaned</span>
+                        <div class="config-group">
+                            <span class="config-label">Bind</span>
+                            <input
+                                class="config-input"
+                                id="server-bind"
+                                type="text"
+                                value="127.0.0.1:7734"
+                                placeholder="127.0.0.1:7734"
+                            />
+                        </div>
+                        <div class="config-group">
+                            <span class="config-label">Log Level</span>
+                            <select class="config-select" id="server-log">
+                                <option value="error">error</option>
+                                <option value="warn">warn</option>
+                                <option value="info" selected>info</option>
+                                <option value="debug">debug</option>
+                                <option value="trace">trace</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-run" id="btn-server-start">
+                            Start Server
+                        </button>
+                        <button class="btn btn-danger" id="btn-server-stop">
+                            Stop Server
+                        </button>
+                    </div>
+                    <div id="server-output"></div>
+                </div>
+
+                <!-- Users panel -->
+                <div class="panel" id="panel-users">
+                    <div class="users-sidebar">
+                        <div class="section-header">
+                            <span>Users</span>
+                            <button
+                                class="btn btn-icon"
+                                id="btn-users-refresh"
+                                style="font-size: 10px; padding: 2px 7px"
+                            >
+                                Refresh
+                            </button>
+                        </div>
+                        <div id="user-list">
+                            <div class="loading-text">Loading…</div>
+                        </div>
+                    </div>
+                    <div class="users-main">
+                        <div class="form-section">
+                            <h3>Add New User</h3>
+                            <div id="add-user-form">
+                                <div class="form-field">
+                                    <label>Username</label>
+                                    <input
+                                        class="form-input"
+                                        id="add-username"
+                                        type="text"
+                                        placeholder="username"
+                                        autocomplete="off"
+                                    />
+                                </div>
+                                <div class="form-field">
+                                    <label>Password</label>
+                                    <input
+                                        class="form-input"
+                                        id="add-password"
+                                        type="password"
+                                        placeholder="••••••••"
+                                    />
+                                </div>
+                                <button
+                                    class="btn btn-primary"
+                                    id="btn-add-user"
+                                >
+                                    Add User
+                                </button>
+                                <div
+                                    class="user-feedback"
+                                    id="user-feedback"
+                                ></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings panel -->
+                <div class="panel" id="panel-settings">
+                    <div class="settings-section">
+                        <h2>Settings</h2>
+                        <p>
+                            Configure the paths to the ArcaneDB binaries and
+                            data directory.
+                        </p>
+
+                        <div class="settings-card">
+                            <h3>Binary Directory</h3>
+                            <p
+                                style="
+                                    font-size: 11px;
+                                    color: var(--text-muted);
+                                    margin-bottom: 12px;
+                                "
+                            >
+                                Directory containing <code>arcaned</code>,
+                                <code>arcc</code>, and <code>arcana</code>.
+                            </p>
+                            <div class="settings-row">
+                                <label>Path</label>
+                                <div class="input-row">
+                                    <input
+                                        class="settings-input"
+                                        id="settings-bin"
+                                        type="text"
+                                        placeholder="~/.arcane/bin"
+                                    />
+                                    <button class="btn" id="btn-browse-bin">
+                                        Browse…
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-card">
+                            <h3>Data Directory</h3>
+                            <p
+                                style="
+                                    font-size: 11px;
+                                    color: var(--text-muted);
+                                    margin-bottom: 12px;
+                                "
+                            >
+                                Directory passed as <code>-d</code> to all
+                                ArcaneDB processes.
+                            </p>
+                            <div class="settings-row">
+                                <label>Path</label>
+                                <div class="input-row">
+                                    <input
+                                        class="settings-input"
+                                        id="settings-data"
+                                        type="text"
+                                        placeholder="~/.arcane/data"
+                                    />
+                                    <button class="btn" id="btn-browse-data">
+                                        Browse…
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button class="btn btn-primary" id="btn-settings-save">
+                            Save Settings
+                        </button>
+                        <div
+                            class="settings-feedback"
+                            id="settings-feedback"
+                        ></div>
+                    </div>
+                </div>
+            </main>
+
+            <!-- Status bar -->
+            <footer id="statusbar">
+                <span id="server-badge" class="server-badge stopped"
+                    >Server: Stopped</span
+                >
+                <span class="status-sep"></span>
+                <span>AQL</span>
+                <span class="status-sep"></span>
+                <span>ArcaneDB Workbench</span>
+            </footer>
+        </div>
+
+        <script>
+            var require = {
+                paths: {
+                    vs: "../node_modules/monaco-editor/min/vs",
+                },
+            };
+        </script>
+        <script src="../node_modules/monaco-editor/min/vs/loader.js"></script>
+        <script>
+            require(["vs/editor/editor.main"], function () {
+                var script = document.createElement("script");
+                script.src = "./renderer.js";
+                document.body.appendChild(script);
+            });
+        </script>
+    </body>
+</html>
