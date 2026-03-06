@@ -221,13 +221,9 @@ ipcMain.handle(
         fs.writeFileSync(tmpPath, scriptContent, "utf-8");
 
         const arcc = binaryPath("arcc");
-        const proc = child_process.spawn(
-          arcc,
-          ["run", tmpPath, "-d", dataDir],
-          {
-            env: { ...process.env },
-          },
-        );
+        const proc = child_process.spawn(arcc, ["run", tmpPath], {
+          env: { ...process.env },
+        });
 
         let stdout = "";
         let stderr = "";
