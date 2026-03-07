@@ -6,7 +6,7 @@ export interface BucketNode {
   fields: Array<{ name: string; type: string }>;
   recordCount?: number;
   records?: Array<Record<string, any>>;
-  type?: "bucket" | "record";
+  type?: "bucket" | "record" | "more";
   data?: Record<string, any>;
   bucketName?: string;
 }
@@ -83,12 +83,16 @@ export class BucketGraphView {
         "charge",
         d3
           .forceManyBody()
-          .strength((d: any) => (d.type === "bucket" ? -800 : -200)),
+          .strength((d: any) => 
+            d.type === "bucket" ? -800 : d.type === "more" ? -100 : -200
+          ),
       )
       .force("center", d3.forceCenter(this.width / 2, this.height / 2))
       .force(
         "collision",
-        d3.forceCollide().radius((d: any) => (d.type === "bucket" ? 60 : 30)),
+        d3.forceCollide().radius((d: any) => 
+          d.type === "bucket" ? 60 : d.type === "more" ? 25 : 30
+        ),
       );
 
     const link = g
@@ -117,10 +121,16 @@ export class BucketGraphView {
 
     node
       .append("circle")
-      .attr("r", (d: any) => (d.type === "bucket" ? 40 : 20))
-      .attr("fill", (d: any) => (d.type === "bucket" ? "#ff5370" : "#89ddff"))
+      .attr("r", (d: any) => 
+        d.type === "bucket" ? 40 : d.type === "more" ? 18 : 20
+      )
+      .attr("fill", (d: any) => 
+        d.type === "bucket" ? "#ff5370" : d.type === "more" ? "#8b949e" : "#89ddff"
+      )
       .attr("fill-opacity", 0.2)
-      .attr("stroke", (d: any) => (d.type === "bucket" ? "#ff5370" : "#89ddff"))
+      .attr("stroke", (d: any) => 
+        d.type === "bucket" ? "#ff5370" : d.type === "more" ? "#8b949e" : "#89ddff"
+      )
       .attr("stroke-width", 2)
       .attr("cursor", "pointer")
       .on("click", (event: { stopPropagation: () => void }, d: BucketNode) => {
@@ -141,8 +151,10 @@ export class BucketGraphView {
       .text((d: { name: any }) => d.name)
       .attr("text-anchor", "middle")
       .attr("dy", (d: any) => (d.type === "bucket" ? -5 : 4))
-      .attr("fill", "#e6edf3")
-      .attr("font-size", (d: any) => (d.type === "bucket" ? "13px" : "10px"))
+      .attr("fill", (d: any) => d.type === "more" ? "#8b949e" : "#e6edf3")
+      .attr("font-size", (d: any) => 
+        d.type === "bucket" ? "13px" : d.type === "more" ? "9px" : "10px"
+      )
       .attr("font-weight", (d: any) => (d.type === "bucket" ? "600" : "400"))
       .attr("pointer-events", "none");
 

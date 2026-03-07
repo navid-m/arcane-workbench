@@ -871,6 +871,11 @@ async function loadBucketGraph(): Promise<void> {
   if (!state.graphView) return;
 
   try {
+    const maxRecordsInput = document.getElementById(
+      "graph-max-records",
+    ) as HTMLInputElement;
+    const maxRecordsPerBucket = parseInt(maxRecordsInput.value) || 20;
+
     const result = await window.arcane.arcc.runScript("show buckets;");
 
     if (result.exitCode !== 0) {
@@ -920,20 +925,24 @@ async function loadBucketGraph(): Promise<void> {
       };
       allNodes.push(bucketNode);
 
-      let query: string;
-      if (recordCount > 50) {
-        query = `get head(50) from ${bucketName};`;
-      } else if (recordCount === 0) {
+      if (maxRecordsPerBucket === 0 || recordCount === 0) {
         continue;
-      } else {
+      }
+
+      const recordsToFetch = Math.min(maxRecordsPerBucket, recordCount);
+      let query: string;
+
+      if (recordsToFetch >= recordCount) {
         query = `get * from ${bucketName};`;
+      } else {
+        query = `get head(${recordsToFetch}) from ${bucketName};`;
       }
 
       const recordsResult = await window.arcane.arcc.runScript(query);
       if (recordsResult.exitCode === 0) {
         const records = parseRecordsFromOutput(recordsResult.stdout);
 
-        records.forEach((record, idx) => {
+        records.slice(0, maxRecordsPerBucket).forEach((record, idx) => {
           const recordId = record.__hash__ || `${bucketName}:record:${idx}`;
           const recordNode = {
             id: recordId,
@@ -944,21 +953,39 @@ async function loadBucketGraph(): Promise<void> {
             data: record,
             bucketName,
           };
-          allNodes.push(recordNode);
 
+          allNodes.push(recordNode);
           allLinks.push({
             source: `bucket:${bucketName}`,
             target: recordId,
             type: "contains",
           });
         });
+
+        if (recordCount > maxRecordsPerBucket) {
+          const moreNode = {
+            id: `${bucketName}:more`,
+            name: `+${recordCount - maxRecordsPerBucket} more`,
+            fields: [],
+            recordCount: 0,
+            type: "more",
+            bucketName,
+          };
+
+          allNodes.push(moreNode);
+          allLinks.push({
+            source: `bucket:${bucketName}`,
+            target: `${bucketName}:more`,
+            type: "contains",
+          });
+        }
       }
     }
 
     const bucketNodes = allNodes.filter((n) => n.type === "bucket");
     const bucketLinks = detectBucketRelationships(bucketNodes);
-    allLinks.push(...bucketLinks);
 
+    allLinks.push(...bucketLinks);
     state.graphView.render({ nodes: allNodes, links: allLinks });
   } catch (err: any) {
     console.error("Error loading bucket graph:", err);
