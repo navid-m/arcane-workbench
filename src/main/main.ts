@@ -15,10 +15,56 @@ import * as os from "os";
 let mainWindow: BrowserWindow | null = null;
 let activeRepl: child_process.ChildProcessWithoutNullStreams | null = null;
 let serverProcess: child_process.ChildProcessWithoutNullStreams | null = null;
+
+const WORKBENCH_CONFIG_DIR = path.join(os.homedir(), ".arcane-workbench");
+const WORKBENCH_CONFIG_FILE = path.join(WORKBENCH_CONFIG_DIR, "config.json");
+
+interface WorkbenchConfig {
+  binaryDir: string;
+  dataDir: string;
+}
+
 let binaryDir: string =
   process.env.ARCANE_BIN_DIR || path.join(os.homedir(), ".arcane", "bin");
 let dataDir: string =
   process.env.ARCANE_DATA_DIR || path.join(os.homedir(), ".arcane", "data");
+
+function ensureConfigDir(): void {
+  if (!fs.existsSync(WORKBENCH_CONFIG_DIR)) {
+    fs.mkdirSync(WORKBENCH_CONFIG_DIR, { recursive: true });
+  }
+}
+
+function loadConfig(): void {
+  ensureConfigDir();
+  
+  if (fs.existsSync(WORKBENCH_CONFIG_FILE)) {
+    try {
+      const configData = fs.readFileSync(WORKBENCH_CONFIG_FILE, "utf-8");
+      const config: WorkbenchConfig = JSON.parse(configData);
+      
+      if (config.binaryDir) binaryDir = config.binaryDir;
+      if (config.dataDir) dataDir = config.dataDir;
+    } catch (err) {
+      console.error("Failed to load config:", err);
+    }
+  }
+}
+
+function saveConfig(): void {
+  ensureConfigDir();
+  
+  const config: WorkbenchConfig = {
+    binaryDir,
+    dataDir,
+  };
+  
+  try {
+    fs.writeFileSync(WORKBENCH_CONFIG_FILE, JSON.stringify(config, null, 2), "utf-8");
+  } catch (err) {
+    console.error("Failed to save config:", err);
+  }
+}
 
 function binaryPath(name: string): string {
   return path.join(binaryDir, name);
@@ -469,6 +515,7 @@ ipcMain.handle(
   async (_event, settings: { binaryDir?: string; dataDir?: string }) => {
     if (settings.binaryDir) binaryDir = settings.binaryDir;
     if (settings.dataDir) dataDir = settings.dataDir;
+    saveConfig();
     return { success: true };
   },
 );
@@ -483,7 +530,11 @@ ipcMain.handle("settings:browse-dir", async () => {
   return { path: null };
 });
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  loadConfig();
+  createWindow();
+});
+
 app.on("window-all-closed", () => {
   killRepl();
   killServer();
