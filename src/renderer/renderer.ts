@@ -15,6 +15,7 @@ import {
   registerAqlTheme,
   AQL_LANGUAGE_ID,
 } from "./aql-language";
+import { BucketGraphView, type GraphData } from "./graph-view";
 
 declare global {
   interface Window {
@@ -82,10 +83,11 @@ declare global {
 interface AppState {
   currentFilePath: string | null;
   isDirty: boolean;
-  activePanel: "editor" | "repl" | "server" | "users" | "settings";
+  activePanel: "editor" | "repl" | "server" | "users" | "graph" | "settings";
   serverRunning: boolean;
   replRunning: boolean;
   editorInstance: monaco.editor.IStandaloneCodeEditor | null;
+  graphView: BucketGraphView | null;
 }
 
 const state: AppState = {
@@ -95,6 +97,7 @@ const state: AppState = {
   serverRunning: false,
   replRunning: false,
   editorInstance: null,
+  graphView: null,
 };
 
 (self as any).MonacoEnvironment = {
@@ -152,6 +155,9 @@ function showPanel(name: AppState["activePanel"]): void {
   if (nav) nav.classList.add("active");
   if (name === "editor" && state.editorInstance) {
     state.editorInstance.layout();
+  }
+  if (name === "graph" && !state.graphView) {
+    initGraph();
   }
 }
 
@@ -636,6 +642,415 @@ function initSettings(): void {
   loadSettings();
 }
 
+function initGraph(): void {
+  if (state.graphView) return;
+
+  state.graphView = new BucketGraphView("graph-container", async (node) => {
+    await showBucketDetails(node);
+  });
+
+  const refreshBtn = document.getElementById(
+    "btn-graph-refresh",
+  ) as HTMLButtonElement;
+  const centerBtn = document.getElementById(
+    "btn-graph-center",
+  ) as HTMLButtonElement;
+  const clearBtn = document.getElementById(
+    "btn-graph-clear",
+  ) as HTMLButtonElement;
+  const closeDetailsBtn = document.getElementById(
+    "btn-graph-close-details",
+  ) as HTMLButtonElement;
+
+  refreshBtn.addEventListener("click", async () => {
+    await loadBucketGraph();
+  });
+
+  centerBtn.addEventListener("click", () => {
+    state.graphView?.centerView();
+  });
+
+  clearBtn.addEventListener("click", () => {
+    state.graphView?.render({ nodes: [], links: [] });
+    hideGraphDetails();
+  });
+
+  closeDetailsBtn.addEventListener("click", () => {
+    hideGraphDetails();
+  });
+
+  loadBucketGraph();
+}
+
+async function showBucketDetails(node: any): Promise<void> {
+  const detailsPanel = document.getElementById("graph-details")!;
+  const detailsTitle = document.getElementById("graph-details-title")!;
+  const detailsContent = document.getElementById("graph-details-content")!;
+
+  detailsPanel.style.width = "450px";
+
+  if (node.type === "record") {
+    detailsTitle.textContent = `${node.bucketName} → ${node.name}`;
+
+    let html = `
+      <div style="background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 6px; padding: 12px;">
+        <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">Record Details</div>
+    `;
+
+    for (const [key, value] of Object.entries(node.data || {})) {
+      const displayValue =
+        value === null || value === undefined
+          ? '<span style="color: var(--text-muted); font-style: italic;">null</span>'
+          : escapeHtml(String(value));
+
+      html += `
+        <div style="display: flex; margin-bottom: 6px; font-size: 12px;">
+          <span style="color: var(--accent-cyan); min-width: 120px; font-weight: 500;">${escapeHtml(key)}:</span>
+          <span style="color: var(--text-primary); word-break: break-all;">${displayValue}</span>
+        </div>
+      `;
+    }
+
+    html += `</div>`;
+    detailsContent.innerHTML = html;
+    return;
+  }
+
+  detailsTitle.textContent = node.name;
+  detailsContent.innerHTML =
+    '<div style="color: var(--text-muted); font-size: 12px;">Loading records...</div>';
+
+  try {
+    const recordCount = node.recordCount || 0;
+    let query: string;
+
+    if (recordCount > 100) {
+      query = `get head(100) from ${node.name};`;
+    } else if (recordCount === 0) {
+      detailsContent.innerHTML =
+        '<div style="color: var(--text-muted); font-size: 12px;">No records in this bucket.</div>';
+      return;
+    } else {
+      query = `get * from ${node.name};`;
+    }
+
+    const result = await window.arcane.arcc.runScript(query);
+
+    if (result.exitCode !== 0) {
+      detailsContent.innerHTML = `<div style="color: var(--accent-red); font-size: 12px;">Error: ${escapeHtml(result.stderr)}</div>`;
+      return;
+    }
+
+    const records = parseRecordsFromOutput(result.stdout);
+
+    if (records.length === 0) {
+      detailsContent.innerHTML =
+        '<div style="color: var(--text-muted); font-size: 12px;">No records found.</div>';
+      return;
+    }
+
+    let html = `
+      <div style="margin-bottom: 12px;">
+        <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">
+          Showing ${records.length} of ${recordCount} record${recordCount !== 1 ? "s" : ""}
+        </div>
+        <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 12px;">
+          <strong>Fields:</strong> ${node.fields.map((f: any) => `${f.name} (${f.type})`).join(", ")}
+        </div>
+      </div>
+    `;
+
+    records.forEach((record, idx) => {
+      html += `
+        <div style="background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 6px; padding: 10px; margin-bottom: 8px;">
+          <div style="font-size: 10px; color: var(--text-muted); margin-bottom: 6px;">Record ${idx + 1}</div>
+      `;
+
+      for (const [key, value] of Object.entries(record)) {
+        const displayValue =
+          value === null || value === undefined
+            ? '<span style="color: var(--text-muted); font-style: italic;">null</span>'
+            : escapeHtml(String(value));
+
+        html += `
+          <div style="display: flex; margin-bottom: 4px; font-size: 12px;">
+            <span style="color: var(--accent-cyan); min-width: 100px; font-weight: 500;">${escapeHtml(key)}:</span>
+            <span style="color: var(--text-primary); word-break: break-all;">${displayValue}</span>
+          </div>
+        `;
+      }
+
+      html += `</div>`;
+    });
+
+    detailsContent.innerHTML = html;
+  } catch (err: any) {
+    detailsContent.innerHTML = `<div style="color: var(--accent-red); font-size: 12px;">Error: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function hideGraphDetails(): void {
+  const detailsPanel = document.getElementById("graph-details")!;
+  detailsPanel.style.width = "0";
+}
+
+function parseRecordsFromOutput(output: string): Array<Record<string, any>> {
+  const lines = output.trim().split("\n");
+  const records: Array<Record<string, any>> = [];
+
+  if (lines.length < 2) return records;
+
+  let headerLine = "";
+  let dataStartIdx = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].includes("──")) {
+      if (i > 0) {
+        headerLine = lines[i - 1];
+        dataStartIdx = i + 1;
+        break;
+      }
+    }
+  }
+
+  if (!headerLine) return records;
+
+  const headers: Array<{ name: string; start: number; end: number }> = [];
+  const headerParts = headerLine.split(/\s{2,}/);
+  let currentPos = 0;
+
+  for (const part of headerParts) {
+    const trimmed = part.trim();
+    if (trimmed) {
+      const start = headerLine.indexOf(trimmed, currentPos);
+      headers.push({
+        name: trimmed,
+        start,
+        end: start + trimmed.length,
+      });
+      currentPos = start + trimmed.length;
+    }
+  }
+
+  for (let i = dataStartIdx; i < lines.length; i++) {
+    const line = lines[i];
+
+    if (line.includes("──") || line.match(/^\(\d+ rows?\)/) || !line.trim()) {
+      continue;
+    }
+
+    const record: Record<string, any> = {};
+
+    const values = line
+      .split(/\s{2,}/)
+      .map((v) => v.trim())
+      .filter(Boolean);
+
+    headers.forEach((header, idx) => {
+      if (idx < values.length) {
+        let value: any = values[idx];
+
+        if (value === "true") value = true;
+        else if (value === "false") value = false;
+        else if (value === "null" || value === "") value = null;
+        else if (!isNaN(Number(value)) && value !== "") value = Number(value);
+
+        record[header.name] = value;
+      }
+    });
+
+    if (Object.keys(record).length > 0) {
+      records.push(record);
+    }
+  }
+
+  return records;
+}
+
+async function loadBucketGraph(): Promise<void> {
+  if (!state.graphView) return;
+
+  try {
+    const result = await window.arcane.arcc.runScript("show buckets;");
+
+    if (result.exitCode !== 0) {
+      console.error("Failed to fetch buckets:", result.stderr);
+      return;
+    }
+
+    const bucketNames = result.stdout
+      .trim()
+      .split("\n")
+      .filter((line) => {
+        const trimmed = line.trim();
+        return (
+          trimmed &&
+          !trimmed.startsWith("─") &&
+          !trimmed.includes("Available buckets") &&
+          !trimmed.match(/^\(\d+\s+buckets?\)$/)
+        );
+      })
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    console.log("Found buckets:", bucketNames);
+
+    const allNodes: any[] = [];
+    const allLinks: any[] = [];
+
+    for (const bucketName of bucketNames) {
+      const descResult = await window.arcane.arcc.runScript(
+        `describe ${bucketName};`,
+      );
+      const fields = parseBucketFields(descResult.stdout);
+      const countResult = await window.arcane.arcc.runScript(
+        `get count(*) from ${bucketName};`,
+      );
+
+      console.log(`Count query for ${bucketName}:`, countResult.stdout);
+      const recordCount = parseRecordCount(countResult.stdout);
+      console.log(`Parsed record count for ${bucketName}:`, recordCount);
+
+      const bucketNode = {
+        id: `bucket:${bucketName}`,
+        name: bucketName,
+        fields,
+        recordCount,
+        type: "bucket",
+      };
+      allNodes.push(bucketNode);
+
+      let query: string;
+      if (recordCount > 50) {
+        query = `get head(50) from ${bucketName};`;
+      } else if (recordCount === 0) {
+        continue;
+      } else {
+        query = `get * from ${bucketName};`;
+      }
+
+      const recordsResult = await window.arcane.arcc.runScript(query);
+      if (recordsResult.exitCode === 0) {
+        const records = parseRecordsFromOutput(recordsResult.stdout);
+
+        records.forEach((record, idx) => {
+          const recordId = record.__hash__ || `${bucketName}:record:${idx}`;
+          const recordNode = {
+            id: recordId,
+            name: getRecordLabel(record, fields),
+            fields: [],
+            recordCount: 0,
+            type: "record",
+            data: record,
+            bucketName,
+          };
+          allNodes.push(recordNode);
+
+          allLinks.push({
+            source: `bucket:${bucketName}`,
+            target: recordId,
+            type: "contains",
+          });
+        });
+      }
+    }
+
+    const bucketNodes = allNodes.filter((n) => n.type === "bucket");
+    const bucketLinks = detectBucketRelationships(bucketNodes);
+    allLinks.push(...bucketLinks);
+
+    state.graphView.render({ nodes: allNodes, links: allLinks });
+  } catch (err: any) {
+    console.error("Error loading bucket graph:", err);
+  }
+}
+
+function getRecordLabel(
+  record: Record<string, any>,
+  fields: Array<{ name: string; type: string }>,
+): string {
+  const labelCandidates = ["name", "title", "id"];
+
+  for (const candidate of labelCandidates) {
+    if (record[candidate] !== undefined && record[candidate] !== null) {
+      return String(record[candidate]);
+    }
+  }
+
+  for (const field of fields) {
+    if (field.type === "string" && record[field.name]) {
+      return String(record[field.name]);
+    }
+  }
+
+  for (const [key, value] of Object.entries(record)) {
+    if (key !== "__hash__" && value !== null && value !== undefined) {
+      return String(value);
+    }
+  }
+
+  return "Record";
+}
+
+function parseBucketFields(
+  output: string,
+): Array<{ name: string; type: string }> {
+  const lines = output.trim().split("\n");
+  const fields: Array<{ name: string; type: string }> = [];
+
+  for (const line of lines) {
+    const match = line.match(/^\s*(\w+)\s*:\s*(\w+)/);
+    if (match) {
+      fields.push({ name: match[1], type: match[2] });
+    }
+  }
+
+  return fields;
+}
+
+function parseRecordCount(output: string): number {
+  const match = output.match(/count\s*\(\s*\*\s*\)\s*:?\s*(\d+)/i);
+  if (match) {
+    return parseInt(match[1], 10);
+  }
+
+  const rowMatch = output.match(/\((\d+)\s+rows?\)/);
+  if (rowMatch) {
+    return parseInt(rowMatch[1], 10);
+  }
+
+  console.warn("Could not parse record count from:", output);
+  return 0;
+}
+
+function detectBucketRelationships(nodes: any[]): any[] {
+  const links: any[] = [];
+
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i + 1; j < nodes.length; j++) {
+      const nodeA = nodes[i];
+      const nodeB = nodes[j];
+
+      const commonFields = nodeA.fields.filter((fieldA: any) =>
+        nodeB.fields.some(
+          (fieldB: any) =>
+            fieldA.name === fieldB.name && fieldA.type === fieldB.type,
+        ),
+      );
+
+      if (commonFields.length > 0) {
+        links.push({
+          source: nodeA.id,
+          target: nodeB.id,
+          type: "related",
+        });
+      }
+    }
+  }
+
+  return links;
+}
+
 function bindMenuEvents(): void {
   window.arcane.onMenuEvent("menu:new-script", () => newScript());
   window.arcane.onMenuEvent("menu:open-script", (data) => {
@@ -646,6 +1061,7 @@ function bindMenuEvents(): void {
   window.arcane.onMenuEvent("menu:save-script-as", () => saveScriptAs());
   window.arcane.onMenuEvent("menu:run-script", () => runScript());
   window.arcane.onMenuEvent("menu:run-selection", () => runSelection());
+  window.arcane.onMenuEvent("menu:show-graph", () => showPanel("graph"));
   window.arcane.onMenuEvent("menu:start-server", () => showPanel("server"));
   window.arcane.onMenuEvent("menu:stop-server", async () => {
     await window.arcane.server.stop();
@@ -671,7 +1087,7 @@ function bindToolbar(): void {
 }
 
 function bindNav(): void {
-  (["editor", "repl", "server", "users", "settings"] as const).forEach(
+  (["editor", "repl", "server", "users", "graph", "settings"] as const).forEach(
     (name) => {
       document
         .getElementById(`nav-${name}`)

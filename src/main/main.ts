@@ -145,6 +145,12 @@ function buildMenu(): void {
         { type: "separator" },
         { role: "toggleDevTools" },
         { type: "separator" },
+        {
+          label: "Bucket Graph",
+          accelerator: "CmdOrCtrl+G",
+          click: () => mainWindow?.webContents.send("menu:show-graph"),
+        },
+        { type: "separator" },
         { role: "resetZoom" },
         { role: "zoomIn" },
         { role: "zoomOut" },

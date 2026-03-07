@@ -791,6 +791,20 @@
                         <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                     </svg>
                 </button>
+                <button
+                    class="nav-item"
+                    id="nav-graph"
+                    data-tooltip="Bucket Graph"
+                >
+                    <!-- Graph icon -->
+                    <svg class="icon" viewBox="0 0 24 24">
+                        <circle cx="18" cy="5" r="3" />
+                        <circle cx="6" cy="12" r="3" />
+                        <circle cx="18" cy="19" r="3" />
+                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                    </svg>
+                </button>
                 <div class="nav-spacer"></div>
                 <button
                     class="nav-item"
@@ -1016,6 +1030,32 @@
                                     id="user-feedback"
                                 ></div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Graph panel -->
+                <div class="panel" id="panel-graph">
+                    <div class="panel-toolbar">
+                        <span class="panel-title">Bucket Graph</span>
+                        <button class="btn btn-run" id="btn-graph-refresh">
+                            Refresh
+                        </button>
+                        <button class="btn" id="btn-graph-center">
+                            Center View
+                        </button>
+                        <button class="btn" id="btn-graph-clear">
+                            Clear
+                        </button>
+                    </div>
+                    <div style="display: flex; flex: 1; overflow: hidden;">
+                        <div id="graph-container" style="flex: 1; position: relative; background: var(--bg-base);"></div>
+                        <div id="graph-details" style="width: 0; overflow: hidden; transition: width 0.3s; border-left: 1px solid var(--border); background: var(--bg-surface); display: flex; flex-direction: column;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--border);">
+                                <span id="graph-details-title" style="font-size: 13px; font-weight: 600; color: var(--text-primary);"></span>
+                                <button class="btn btn-icon" id="btn-graph-close-details" style="font-size: 10px; padding: 2px 7px;">Close</button>
+                            </div>
+                            <div id="graph-details-content" style="flex: 1; overflow-y: auto; padding: 12px;"></div>
                         </div>
                     </div>
                 </div>
