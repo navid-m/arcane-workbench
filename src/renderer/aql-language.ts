@@ -532,7 +532,7 @@ export function registerAqlTheme(monaco: typeof Monaco): void {
     base: "vs-dark",
     inherit: true,
     rules: [
-      { token: "keyword", foreground: "c792ea", fontStyle: "bold" },
+      { token: "keyword", foreground: "ff5370", fontStyle: "bold" },
       {
         token: "keyword.control.transaction",
         foreground: "ff9580",
@@ -567,11 +567,11 @@ export function registerAqlTheme(monaco: typeof Monaco): void {
       "editor.inactiveSelectionBackground": "#264f7820",
       "editorLineNumber.foreground": "#484f58",
       "editorLineNumber.activeForeground": "#8b949e",
-      "editorCursor.foreground": "#c792ea",
+      "editorCursor.foreground": "#ff5370",
       "editorIndentGuide.background": "#21262d",
       "editorIndentGuide.activeBackground": "#30363d",
-      "editorBracketMatch.background": "#c792ea30",
-      "editorBracketMatch.border": "#c792ea80",
+      "editorBracketMatch.background": "#ff537030",
+      "editorBracketMatch.border": "#ff537080",
       "editorWidget.background": "#161b22",
       "editorWidget.border": "#30363d",
       "editorSuggestWidget.background": "#161b22",
