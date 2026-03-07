@@ -101,5 +101,5 @@ function copyDir(src, dest) {
 }
 
 copyDir(monacoSrc, monacoDest);
-
+fs.copyFileSync("src/renderer/index.html", "dist/renderer/index.html");
 console.log("Build complete.");
