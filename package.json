@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "ArcaneDB Workbench — professional IDE for ArcaneDB",
   "main": "dist/main/main.js",
+  "author": "Navid Momtahen",
   "scripts": {
     "build": "node scripts/build.js",
     "start": "npm run build && electron .",
