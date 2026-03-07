@@ -78,7 +78,12 @@ const monacoSrc = path.join(
 );
 const monacoDest = path.join(__dirname, "..", "dist", "monaco");
 
-// Helper function to copy directory recursively
+/**
+ * Copy some directory recursively.
+ *
+ * @param {*} src Source folder
+ * @param {*} dest Destination folder
+ */
 function copyDir(src, dest) {
   fs.mkdirSync(dest, { recursive: true });
   const entries = fs.readdirSync(src, { withFileTypes: true });
