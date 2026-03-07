@@ -76,14 +76,7 @@ const monacoSrc = path.join(
   "monaco-editor",
   "min",
 );
-const monacoDest = path.join(
-  __dirname,
-  "..",
-  "dist",
-  "node_modules",
-  "monaco-editor",
-  "min",
-);
+const monacoDest = path.join(__dirname, "..", "dist", "monaco");
 
 // Helper function to copy directory recursively
 function copyDir(src, dest) {
