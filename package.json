@@ -1,5 +1,6 @@
 {
   "name": "arcane-workbench",
+  "productName": "Arcane Workbench",
   "version": "1.0.0",
   "description": "ArcaneDB Workbench — professional IDE for ArcaneDB",
   "main": "dist/main/main.js",
