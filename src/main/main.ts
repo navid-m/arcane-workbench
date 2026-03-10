@@ -37,12 +37,12 @@ function ensureConfigDir(): void {
 
 function loadConfig(): void {
   ensureConfigDir();
-  
+
   if (fs.existsSync(WORKBENCH_CONFIG_FILE)) {
     try {
       const configData = fs.readFileSync(WORKBENCH_CONFIG_FILE, "utf-8");
       const config: WorkbenchConfig = JSON.parse(configData);
-      
+
       if (config.binaryDir) binaryDir = config.binaryDir;
       if (config.dataDir) dataDir = config.dataDir;
     } catch (err) {
@@ -53,14 +53,18 @@ function loadConfig(): void {
 
 function saveConfig(): void {
   ensureConfigDir();
-  
+
   const config: WorkbenchConfig = {
     binaryDir,
     dataDir,
   };
-  
+
   try {
-    fs.writeFileSync(WORKBENCH_CONFIG_FILE, JSON.stringify(config, null, 2), "utf-8");
+    fs.writeFileSync(
+      WORKBENCH_CONFIG_FILE,
+      JSON.stringify(config, null, 2),
+      "utf-8",
+    );
   } catch (err) {
     console.error("Failed to save config:", err);
   }
@@ -77,7 +81,7 @@ function createWindow(): void {
     minWidth: 900,
     minHeight: 600,
     backgroundColor: "#0d0f14",
-    titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
+    // titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
     frame: process.platform !== "darwin",
     show: false,
     webPreferences: {
